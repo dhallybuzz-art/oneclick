@@ -5,7 +5,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// R2 Client কনফিগারেশন
+// R2 Client Setup
 const s3Client = new S3Client({
     region: "auto",
     endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -16,34 +16,32 @@ const s3Client = new S3Client({
 });
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());
+app.get('/', (req, res) => res.send("OneClick Signer is Online."));
 
 app.get('/:fileName', async (req, res) => {
     const fileName = req.params.fileName;
 
     try {
-        // ১. সরাসরি বাকেট থেকে ফাইলের জন্য কমান্ড তৈরি
         const command = new GetObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
-            Key: fileName, // এখানে আপনার মুভির আসল নাম বা কি (Key) বসবে
+            Key: fileName, // বাকেটের ফাইলের নাম
         });
 
-        // ২. Presigned URL জেনারেট করা (২৪ ঘণ্টা মেয়াদের জন্য)
-        // এটি আপনার দেওয়া স্যাম্পল লিঙ্কের মতো X-Amz-Signature তৈরি করবে
+        // ২৪ ঘণ্টার জন্য সিগনেচার করা লিঙ্ক তৈরি হবে
         const signedUrl = await getSignedUrl(s3Client, command, { 
-            expiresIn: 86400 // ২৪ ঘণ্টা (seconds)
+            expiresIn: 86400 
         });
 
-        // ৩. PHP সাইটের জন্য JSON রেসপন্স
         res.json({
             status: "success",
             filename: fileName,
-            url: signedUrl // এই ইউআরএল-টি আপনার দেওয়া স্যাম্পল লিঙ্কের মতো হবে
+            url: signedUrl // এই লিঙ্কে X-Amz-Signature থাকবে
         });
 
     } catch (error) {
-        console.error("OneClick Error:", error.message);
-        res.status(500).json({ status: "error", message: "Could not generate link" });
+        console.error("Link Generation Error:", error.message);
+        res.status(500).json({ status: "error", message: "Error generating link" });
     }
 });
 
-app.listen(PORT, () => console.log(`OneClick Service running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Service running on port ${PORT}`));
