@@ -16,26 +16,36 @@ const s3Client = new S3Client({
 });
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());
-app.get('/', (req, res) => res.send("OneClick Signer is Online."));
+app.get('/', (req, res) => res.send("OneClick Signer is Online and Optimized."));
 
 app.get('/:fileName', async (req, res) => {
-    const fileName = req.params.fileName;
+    // ফাইলের নাম যদি ইউআরএল এনকোড করা থাকে তবে তা ডিকোড করে নেওয়া ভালো
+    const fileName = decodeURIComponent(req.params.fileName);
 
     try {
         const command = new GetObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
-            Key: fileName, // বাকেটের ফাইলের নাম
+            Key: fileName,
         });
 
-        // ২৪ ঘণ্টার জন্য সিগনেচার করা লিঙ্ক তৈরি হবে
+        // ২৪ ঘণ্টার (৮৬৪০০ সেকেন্ড) জন্য সিগনেচার জেনারেট করা
         const signedUrl = await getSignedUrl(s3Client, command, { 
             expiresIn: 86400 
         });
 
+        // পাবলিক ডোমেইন রিপ্লেসমেন্ট লজিক
+        let finalUrl = signedUrl;
+        if (process.env.R2_PUBLIC_DOMAIN) {
+            // R2 এর ডিফল্ট এন্ডপয়েন্ট ফরম্যাট
+            const defaultEndpoint = `${process.env.R2_BUCKET_NAME}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+            // ডিফল্ট এন্ডপয়েন্ট সরিয়ে আপনার ডোমেইন বসিয়ে দেওয়া হচ্ছে
+            finalUrl = signedUrl.replace(defaultEndpoint, process.env.R2_PUBLIC_DOMAIN);
+        }
+
         res.json({
             status: "success",
             filename: fileName,
-            url: signedUrl // এই লিঙ্কে X-Amz-Signature থাকবে
+            url: finalUrl // এই লিঙ্কে আপনার কাস্টম ডোমেইন এবং সিগনেচার দুইটাই থাকবে
         });
 
     } catch (error) {
